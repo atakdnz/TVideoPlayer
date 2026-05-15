@@ -208,7 +208,7 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
                 motionEvent.getY() > getHeight() - IGNORE_BORDER || motionEvent.getX() > getWidth() - IGNORE_BORDER)
             return false;
 
-        if (transformController.getState().zoom > 1f && PlayerActivity.player != null && !PlayerActivity.player.isPlaying()) {
+        if (transformController.getState().zoom > 1f && PlayerActivity.player != null) {
             transformController.panBy(-distanceX, -distanceY, getWidth(), getHeight());
             transformController.applyTo(getVideoSurfaceView());
             setCustomErrorMessage((int)(transformController.getState().zoom * 100) + "%");
@@ -327,9 +327,8 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
         if (canScale) {
             final float factor = scaleGestureDetector.getScaleFactor();
             mScaleFactor *= factor + (1 - factor) / 3 * 2;
-            mScaleFactor = Utils.normalizeScaleFactor(mScaleFactor, mScaleFactorFit);
-            setScale(mScaleFactor, scaleGestureDetector.getFocusX(), scaleGestureDetector.getFocusY());
-            restoreSurfaceView();
+            mScaleFactor = Math.max(1.0f, Math.min(mScaleFactor, 4.0f));
+            setScale(mScaleFactor);
             clearIcon();
             setCustomErrorMessage((int)(mScaleFactor * 100) + "%");
             return true;
@@ -343,21 +342,7 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
             return false;
 
         mScaleFactor = transformController.getState().zoom;
-        if (getResizeMode() != AspectRatioFrameLayout.RESIZE_MODE_ZOOM) {
-            canScale = false;
-            setAspectRatioListener((targetAspectRatio, naturalAspectRatio, aspectRatioMismatch) -> {
-                setAspectRatioListener(null);
-                mScaleFactor = mScaleFactorFit = getScaleFit();
-                canScale = true;
-            });
-            getVideoSurfaceView().setAlpha(0);
-            setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
-        } else {
-            mScaleFactorFit = getScaleFit();
-            canScale = true;
-        }
-        ImageButton buttonAspectRatio = findViewById(Integer.MAX_VALUE - 100);
-        buttonAspectRatio.setImageResource(R.drawable.ic_fit_screen_24dp);
+        canScale = true;
         hideController();
         return true;
     }
@@ -366,17 +351,9 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
     public void onScaleEnd(ScaleGestureDetector scaleGestureDetector) {
         if (PlayerActivity.locked)
             return;
-        if (mScaleFactor - mScaleFactorFit < 0.001) {
-            setScale(1.f);
-            setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
-
-            ImageButton buttonAspectRatio = findViewById(Integer.MAX_VALUE - 100);
-            buttonAspectRatio.setImageResource(R.drawable.ic_aspect_ratio_24dp);
-        }
         if (PlayerActivity.player != null && !PlayerActivity.player.isPlaying()) {
             showController();
         }
-        restoreSurfaceView();
     }
 
     private void restoreSurfaceView() {
@@ -418,21 +395,16 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
     }
 
     public void setScale(final float scale) {
-        setScale(scale, getWidth() / 2f, getHeight() / 2f);
-    }
-
-    public void setScale(final float scale, final float pivotX, final float pivotY) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             final View videoSurfaceView = getVideoSurfaceView();
             try {
-                videoSurfaceView.setPivotX(pivotX);
-                videoSurfaceView.setPivotY(pivotY);
+                videoSurfaceView.setPivotX(videoSurfaceView.getWidth() / 2f);
+                videoSurfaceView.setPivotY(videoSurfaceView.getHeight() / 2f);
                 transformController.setZoom(scale);
                 transformController.applyTo(videoSurfaceView);
             } catch (IllegalArgumentException e) {
                 e.printStackTrace();
             }
-            //videoSurfaceView.animate().setStartDelay(0).setDuration(0).scaleX(scale).scaleY(scale).start();
         }
     }
 

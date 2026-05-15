@@ -1105,9 +1105,7 @@ public class PlayerActivity extends Activity {
             ContextCompat.registerReceiver(this, mReceiver, new IntentFilter(ACTION_MEDIA_CONTROL), ContextCompat.RECEIVER_EXPORTED);
         } else {
             setSubtitleTextSize();
-            if (mPrefs.resizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM) {
-                playerView.setScale(mPrefs.scale);
-            }
+            playerView.setScale(mPrefs.scale);
             if (mReceiver != null) {
                 unregisterReceiver(mReceiver);
                 mReceiver = null;
@@ -1344,11 +1342,6 @@ public class PlayerActivity extends Activity {
 
             playerView.setResizeMode(mPrefs.resizeMode);
 
-            if (mPrefs.resizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM) {
-                playerView.setScale(mPrefs.scale);
-            } else {
-                playerView.setScale(1.f);
-            }
             playerView.getTransformController().setUserRotationDegrees(mPrefs.userRotation);
             playerView.getTransformController().setFlipHorizontal(mPrefs.flipHorizontal);
             playerView.getTransformController().setFlipVertical(mPrefs.flipVertical);
@@ -2644,7 +2637,7 @@ public class PlayerActivity extends Activity {
         } else {
             scaleFactor -= 0.01;
         }
-        scaleFactor = Utils.normalizeScaleFactor(scaleFactor, playerView.getScaleFit());
+        scaleFactor = Math.max(1.0f, Math.min(scaleFactor, 4.0f));
         playerView.setScale(scaleFactor);
         playerView.setCustomErrorMessage((int)(scaleFactor * 100) + "%");
     }
@@ -2654,10 +2647,6 @@ public class PlayerActivity extends Activity {
         playerView.postDelayed(playerView.textClearRunnable, 200);
         if (player != null && !player.isPlaying()) {
             playerView.showController();
-        }
-        if (Math.abs(playerView.getScaleFit() - scaleFactor) < 0.01 / 2) {
-            playerView.setScale(1.f);
-            playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FIT);
         }
         updatebuttonAspectRatioIcon();
     }
