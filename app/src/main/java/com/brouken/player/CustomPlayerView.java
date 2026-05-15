@@ -328,7 +328,7 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
             final float factor = scaleGestureDetector.getScaleFactor();
             mScaleFactor *= factor + (1 - factor) / 3 * 2;
             mScaleFactor = Utils.normalizeScaleFactor(mScaleFactor, mScaleFactorFit);
-            setScale(mScaleFactor);
+            setScale(mScaleFactor, scaleGestureDetector.getFocusX(), scaleGestureDetector.getFocusY());
             restoreSurfaceView();
             clearIcon();
             setCustomErrorMessage((int)(mScaleFactor * 100) + "%");
@@ -418,9 +418,15 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
     }
 
     public void setScale(final float scale) {
+        setScale(scale, getWidth() / 2f, getHeight() / 2f);
+    }
+
+    public void setScale(final float scale, final float pivotX, final float pivotY) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             final View videoSurfaceView = getVideoSurfaceView();
             try {
+                videoSurfaceView.setPivotX(pivotX);
+                videoSurfaceView.setPivotY(pivotY);
                 transformController.setZoom(scale);
                 transformController.applyTo(videoSurfaceView);
             } catch (IllegalArgumentException e) {
