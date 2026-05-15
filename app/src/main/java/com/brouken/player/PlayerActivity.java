@@ -1675,7 +1675,9 @@ public class PlayerActivity extends Activity {
                 }
                 frameStepLoading = false;
                 if (resultFailure != null && frameStepEngine != null) {
-                    frameStepEngine.getState().error = "Frame extraction unavailable for this source.";
+                    frameStepEngine.getState().mode = FrameStepMode.SeekBased;
+                    frameStepEngine.getState().message = "Seek-based frame step\nRendered by player";
+                    frameStepEngine.getState().error = null;
                 }
                 frameModeActive = frameStepEngine != null && frameStepEngine.getState().isFrameMode();
                 showFramePreview(resultBitmap);
@@ -1718,7 +1720,7 @@ public class PlayerActivity extends Activity {
             } else if (state.message != null) {
                 frameStatusView.setText(state.message);
             } else if (bitmap == null) {
-                frameStatusView.setText("Frame extraction unavailable for this source.");
+                frameStatusView.setText("Seek-based frame step\nRendered by player");
             }
             frameStatusView.setVisibility(View.VISIBLE);
         }

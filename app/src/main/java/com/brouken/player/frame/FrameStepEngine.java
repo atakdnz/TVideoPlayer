@@ -172,7 +172,7 @@ public class FrameStepEngine {
     public Bitmap getFrameAtTimeUs(long timeUs) {
         OpenedRetriever openedRetriever = openRetriever();
         if (openedRetriever == null) {
-            state.error = "Frame extraction unavailable for this source.";
+            downgradeToSeekBased(usToMs(timeUs));
             return null;
         }
         try {
@@ -180,12 +180,7 @@ public class FrameStepEngine {
             state.currentPreviewBitmap = bitmap;
             return bitmap;
         } catch (Throwable e) {
-            if (state.mode == FrameStepMode.TimestampEstimated) {
-                state.message = "Estimated frame step\nFrame preview unavailable for this source.";
-                state.error = null;
-            } else {
-                state.error = "Frame extraction unavailable for this source.";
-            }
+            downgradeToSeekBased(usToMs(timeUs));
             return null;
         } finally {
             openedRetriever.close();
@@ -225,6 +220,15 @@ public class FrameStepEngine {
     private long clampPositionMs(long positionMs) {
         long max = metadata == null || metadata.durationMs <= 0 ? Long.MAX_VALUE : metadata.durationMs;
         return Math.max(0L, Math.min(positionMs, max));
+    }
+
+    private void downgradeToSeekBased(long positionMs) {
+        state.mode = FrameStepMode.SeekBased;
+        state.currentFrameIndex = null;
+        state.totalFrames = null;
+        state.message = "Seek-based frame step\nRendered by player";
+        state.error = null;
+        estimatedPositionMs = clampPositionMs(positionMs);
     }
 
     private boolean isLargeVideo(VideoMetadata metadata) {
