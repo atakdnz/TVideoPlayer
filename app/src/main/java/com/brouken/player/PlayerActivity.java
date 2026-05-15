@@ -1638,6 +1638,10 @@ public class PlayerActivity extends Activity {
             Throwable failure = null;
             try {
                 FrameStepState state = frameStepEngine.getState();
+                if (state.mode == FrameStepMode.Unavailable) {
+                    frameStepEngine.prepare(mPrefs.mediaUri);
+                    state = frameStepEngine.getState();
+                }
                 long currentPositionMs = player == null ? 0L : player.getCurrentPosition();
                 if (!state.isFrameMode() || state.currentPreviewBitmap == null) {
                     bitmap = frameStepEngine.enterFrameMode(currentPositionMs);
@@ -1658,6 +1662,9 @@ public class PlayerActivity extends Activity {
                     frameStepEngine.getState().error = "Frame extraction unavailable for this source.";
                 }
                 showFramePreview(resultBitmap);
+                if (player != null && frameStepEngine != null && frameStepEngine.getState().mode == FrameStepMode.TimestampEstimated) {
+                    player.seekTo(frameStepEngine.selectedPositionMs());
+                }
             });
         }).start();
     }
@@ -1673,7 +1680,11 @@ public class PlayerActivity extends Activity {
             if (state.mode == FrameStepMode.IndexedExactBestEffort && state.currentFrameIndex != null && state.totalFrames != null) {
                 frameStatusView.setText("Frame " + (state.currentFrameIndex + 1) + " / " + state.totalFrames);
             } else if (state.mode == FrameStepMode.TimestampEstimated) {
-                frameStatusView.setText("Estimated frame step\nFrame count unavailable");
+                if (state.message != null) {
+                    frameStatusView.setText(state.message);
+                } else {
+                    frameStatusView.setText("Estimated frame step\nFrame count unavailable");
+                }
             } else if (state.error != null) {
                 frameStatusView.setText(state.error);
             } else if (state.message != null) {

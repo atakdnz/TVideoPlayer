@@ -54,8 +54,8 @@ public class FrameStepEngine {
             state.mode = FrameStepMode.TimestampEstimated;
             state.message = "Estimated frame step";
         } else {
-            state.mode = FrameStepMode.Unavailable;
-            state.message = "Frame extraction unavailable for this source.";
+            state.mode = FrameStepMode.TimestampEstimated;
+            state.message = "Estimated frame step\nFrame preview unavailable for this source.";
         }
     }
 
@@ -111,7 +111,12 @@ public class FrameStepEngine {
         }
         OpenedRetriever openedRetriever = openRetriever();
         if (openedRetriever == null) {
-            state.error = "Frame extraction unavailable for this source.";
+            if (state.mode == FrameStepMode.TimestampEstimated) {
+                state.message = "Estimated frame step\nFrame preview unavailable for this source.";
+                state.error = null;
+            } else {
+                state.error = "Frame extraction unavailable for this source.";
+            }
             return null;
         }
         try {
@@ -160,7 +165,12 @@ public class FrameStepEngine {
             state.currentPreviewBitmap = bitmap;
             return bitmap;
         } catch (Throwable e) {
-            state.error = "Frame extraction unavailable for this source.";
+            if (state.mode == FrameStepMode.TimestampEstimated) {
+                state.message = "Estimated frame step\nFrame preview unavailable for this source.";
+                state.error = null;
+            } else {
+                state.error = "Frame extraction unavailable for this source.";
+            }
             return null;
         } finally {
             openedRetriever.close();
