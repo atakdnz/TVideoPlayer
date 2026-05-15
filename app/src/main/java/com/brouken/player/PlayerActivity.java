@@ -1634,26 +1634,37 @@ public class PlayerActivity extends Activity {
         frameStatusView.setText("Loading frame...");
         frameStatusView.setVisibility(View.VISIBLE);
         new Thread(() -> {
-            FrameStepState state = frameStepEngine.getState();
-            Bitmap bitmap;
-            if (!state.isFrameMode() || state.currentPreviewBitmap == null) {
-                bitmap = frameStepEngine.enterFrameMode(player.getCurrentPosition());
-            } else {
-                bitmap = forward ? frameStepEngine.nextFrame() : frameStepEngine.previousFrame();
+            Bitmap bitmap = null;
+            Throwable failure = null;
+            try {
+                FrameStepState state = frameStepEngine.getState();
+                long currentPositionMs = player == null ? 0L : player.getCurrentPosition();
+                if (!state.isFrameMode() || state.currentPreviewBitmap == null) {
+                    bitmap = frameStepEngine.enterFrameMode(currentPositionMs);
+                } else {
+                    bitmap = forward ? frameStepEngine.nextFrame() : frameStepEngine.previousFrame();
+                }
+            } catch (Throwable throwable) {
+                failure = throwable;
             }
+            Bitmap resultBitmap = bitmap;
+            Throwable resultFailure = failure;
             runOnUiThread(() -> {
                 if (requestId != frameStepRequestId) {
                     return;
                 }
                 frameStepLoading = false;
-                showFramePreview(bitmap);
+                if (resultFailure != null && frameStepEngine != null) {
+                    frameStepEngine.getState().error = "Frame extraction unavailable for this source.";
+                }
+                showFramePreview(resultBitmap);
             });
         }).start();
     }
 
     private void showFramePreview(Bitmap bitmap) {
         FrameStepState state = frameStepEngine == null ? null : frameStepEngine.getState();
-        if (bitmap != null) {
+        if (bitmap != null && !bitmap.isRecycled()) {
             framePreview.setImageBitmap(bitmap);
             framePreview.setVisibility(View.VISIBLE);
             applyFramePreviewTransform();
@@ -1663,8 +1674,12 @@ public class PlayerActivity extends Activity {
                 frameStatusView.setText("Frame " + (state.currentFrameIndex + 1) + " / " + state.totalFrames);
             } else if (state.mode == FrameStepMode.TimestampEstimated) {
                 frameStatusView.setText("Estimated frame step\nFrame count unavailable");
+            } else if (state.error != null) {
+                frameStatusView.setText(state.error);
             } else if (state.message != null) {
                 frameStatusView.setText(state.message);
+            } else if (bitmap == null) {
+                frameStatusView.setText("Frame extraction unavailable for this source.");
             }
             frameStatusView.setVisibility(View.VISIBLE);
         }

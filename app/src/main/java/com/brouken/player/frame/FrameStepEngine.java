@@ -19,6 +19,7 @@ public class FrameStepEngine {
     private VideoMetadata metadata;
     private String videoKey;
     private long estimatedPositionMs;
+    private boolean indexedExtractionFailed;
 
     public FrameStepEngine(Context context) {
         this.context = context.getApplicationContext();
@@ -42,6 +43,7 @@ public class FrameStepEngine {
             return;
         }
         metadata = metadataReader.read(context, uri);
+        indexedExtractionFailed = false;
         state.totalFrames = metadata.frameCount;
         state.estimatedFps = metadata.estimatedFps;
         frameCache.setMaxEntries(isLargeVideo(metadata) ? 3 : 9);
@@ -91,6 +93,14 @@ public class FrameStepEngine {
         if (state.mode != FrameStepMode.IndexedExactBestEffort || metadata == null || metadata.frameCount == null) {
             return null;
         }
+        if (indexedExtractionFailed) {
+            state.mode = FrameStepMode.TimestampEstimated;
+            estimatedPositionMs = frameIndexToTimestampMs(index);
+            state.currentFrameIndex = null;
+            state.totalFrames = null;
+            state.message = "Estimated frame step";
+            return getFrameAtTimeUs(msToUs(estimatedPositionMs));
+        }
         int clamped = Math.max(0, Math.min(index, metadata.frameCount - 1));
         state.currentFrameIndex = clamped;
         FrameCacheKey key = new FrameCacheKey(videoKey, clamped);
@@ -110,9 +120,15 @@ public class FrameStepEngine {
             state.currentPreviewBitmap = bitmap;
             frameCache.put(key, bitmap);
             return bitmap;
-        } catch (Exception e) {
-            state.error = "Frame extraction unavailable for this source.";
-            return null;
+        } catch (Throwable e) {
+            indexedExtractionFailed = true;
+            state.mode = FrameStepMode.TimestampEstimated;
+            state.currentFrameIndex = null;
+            state.totalFrames = null;
+            state.message = "Estimated frame step";
+            state.error = null;
+            estimatedPositionMs = frameIndexToTimestampMs(clamped);
+            return getFrameAtTimeUs(msToUs(estimatedPositionMs));
         } finally {
             openedRetriever.close();
         }
@@ -143,7 +159,7 @@ public class FrameStepEngine {
             Bitmap bitmap = downscalePreview(openedRetriever.retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST));
             state.currentPreviewBitmap = bitmap;
             return bitmap;
-        } catch (Exception e) {
+        } catch (Throwable e) {
             state.error = "Frame extraction unavailable for this source.";
             return null;
         } finally {
