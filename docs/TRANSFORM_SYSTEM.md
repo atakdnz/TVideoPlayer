@@ -27,3 +27,11 @@ Decision: use TextureView as the normal precision-viewer rendering path. `activi
 ## Overlay
 
 Frame bitmap overlay uses the same `VideoTransformState` so paused precision frames visually follow playback transforms.
+
+## Current Implementation Status
+
+- The normal layout requests `TextureView`.
+- Manual rotation, horizontal flip, vertical flip, zoom, and pan are applied to the video surface.
+- Frame preview overlay receives the same transform state.
+- Zoom and pan are persisted per video.
+- Pan is currently enabled while paused and zoomed so it does not fight normal playback seek/brightness/volume gestures.

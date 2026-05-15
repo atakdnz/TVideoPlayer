@@ -35,3 +35,11 @@ If indexed access is unavailable, the engine uses timestamp-based estimated step
 ## Sync Back
 
 When leaving indexed frame mode, the selected frame index is converted back to milliseconds and ExoPlayer seeks near that frame before playback resumes.
+
+## Current Implementation Status
+
+- Frame extraction runs off the UI thread from `PlayerActivity`.
+- Stale frame requests are ignored when the user exits frame mode or starts playback.
+- Preview bitmaps are downscaled to a maximum side of 1920 px.
+- Frame cache uses a 64 MB budget and reduces entry count for large/unknown videos.
+- Asset file descriptors stay open for the lifetime of the associated retriever call.

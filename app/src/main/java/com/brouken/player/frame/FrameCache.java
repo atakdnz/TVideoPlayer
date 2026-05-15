@@ -5,7 +5,7 @@ import android.util.LruCache;
 
 public class FrameCache {
     private final long maxMemoryBytes;
-    private final int maxEntries;
+    private int maxEntries;
     private final LruCache<FrameCacheKey, Bitmap> cache;
 
     public FrameCache(long maxMemoryBytes, int maxEntries) {
@@ -37,6 +37,11 @@ public class FrameCache {
 
     public void clear() {
         cache.evictAll();
+    }
+
+    public void setMaxEntries(int maxEntries) {
+        this.maxEntries = Math.max(1, maxEntries);
+        trimEntryCount();
     }
 
     private void trimEntryCount() {

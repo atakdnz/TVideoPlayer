@@ -9,6 +9,8 @@ import android.preference.PreferenceManager;
 import androidx.media3.exoplayer.DefaultRenderersFactory;
 import androidx.media3.ui.AspectRatioFrameLayout;
 
+import com.brouken.player.settings.PerVideoKey;
+
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.ObjectInputStream;
@@ -202,7 +204,9 @@ class Prefs {
             positions.remove(positions.keySet().toArray()[0]);
 
         if (persistentMode) {
-            positions.put(mediaUri.toString(), position);
+            PerVideoKey perVideoKey = PerVideoKey.from(mContext, mediaUri, null);
+            positions.put(perVideoKey.exactKey(), position);
+            positions.put(perVideoKey.layeredKey(), position);
             savePositions();
         } else {
             nonPersitentPosition = position;
@@ -290,6 +294,10 @@ class Prefs {
         Object val = positions.get(mediaUri.toString());
         if (val != null)
             return (long) val;
+        PerVideoKey perVideoKey = PerVideoKey.from(mContext, mediaUri, null);
+        val = positions.get(perVideoKey.layeredKey());
+        if (val != null)
+            return (long) val;
 
         // Return position for uri from limited scope (loaded after using Next action)
         if (ContentResolver.SCHEME_CONTENT.equals(mediaUri.getScheme())) {
@@ -355,7 +363,10 @@ class Prefs {
             while (transforms.size() > 100) {
                 transforms.remove(transforms.keySet().toArray()[0]);
             }
-            transforms.put(mediaUri.toString(), new TransformRecord(userRotation, flipHorizontal, flipVertical, scale, panX, panY, resizeMode, speed));
+            TransformRecord record = new TransformRecord(userRotation, flipHorizontal, flipVertical, scale, panX, panY, resizeMode, speed);
+            PerVideoKey perVideoKey = PerVideoKey.from(mContext, mediaUri, null);
+            transforms.put(perVideoKey.exactKey(), record);
+            transforms.put(perVideoKey.layeredKey(), record);
             saveTransforms();
         }
         if (persistentMode) {
@@ -378,6 +389,12 @@ class Prefs {
             Object value = transforms.get(uri.toString());
             if (value instanceof TransformRecord) {
                 record = (TransformRecord) value;
+            } else {
+                PerVideoKey perVideoKey = PerVideoKey.from(mContext, uri, null);
+                value = transforms.get(perVideoKey.layeredKey());
+                if (value instanceof TransformRecord) {
+                    record = (TransformRecord) value;
+                }
             }
         }
         if (record == null) {

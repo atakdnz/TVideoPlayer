@@ -180,6 +180,8 @@ public class PlayerActivity extends Activity {
     private ImageView framePreview;
     private TextView frameStatusView;
     private FrameStepEngine frameStepEngine;
+    private int frameStepRequestId = 0;
+    private boolean frameStepLoading = false;
 
     private boolean restoreOrientationLock;
     private boolean restorePlayState;
@@ -1623,7 +1625,14 @@ public class PlayerActivity extends Activity {
         if (player == null || frameStepEngine == null || mPrefs.mediaUri == null) {
             return;
         }
+        if (frameStepLoading) {
+            return;
+        }
         player.pause();
+        frameStepLoading = true;
+        final int requestId = ++frameStepRequestId;
+        frameStatusView.setText("Loading frame...");
+        frameStatusView.setVisibility(View.VISIBLE);
         new Thread(() -> {
             FrameStepState state = frameStepEngine.getState();
             Bitmap bitmap;
@@ -1632,7 +1641,13 @@ public class PlayerActivity extends Activity {
             } else {
                 bitmap = forward ? frameStepEngine.nextFrame() : frameStepEngine.previousFrame();
             }
-            runOnUiThread(() -> showFramePreview(bitmap));
+            runOnUiThread(() -> {
+                if (requestId != frameStepRequestId) {
+                    return;
+                }
+                frameStepLoading = false;
+                showFramePreview(bitmap);
+            });
         }).start();
     }
 
@@ -1656,6 +1671,8 @@ public class PlayerActivity extends Activity {
     }
 
     private void hideFramePreview() {
+        frameStepRequestId++;
+        frameStepLoading = false;
         if (framePreview != null) {
             framePreview.setImageDrawable(null);
             framePreview.setVisibility(View.GONE);
@@ -1688,6 +1705,10 @@ public class PlayerActivity extends Activity {
         @Override
         public void onIsPlayingChanged(boolean isPlaying) {
             playerView.setKeepScreenOn(isPlaying);
+            updatePrecisionControlsVisibility();
+            if (isPlaying) {
+                hideFramePreview();
+            }
 
             if (Utils.isPiPSupported(PlayerActivity.this)) {
                 if (isPlaying) {
@@ -2490,10 +2511,25 @@ public class PlayerActivity extends Activity {
             Utils.setButtonEnabled(this, buttonPiP, enable);
         }
         Utils.setButtonEnabled(this, buttonAspectRatio, enable);
+        Utils.setButtonEnabled(this, buttonSpeed, enable);
+        Utils.setButtonEnabled(this, buttonFramePrevious, enable);
+        Utils.setButtonEnabled(this, buttonFrameNext, enable);
+        Utils.setButtonEnabled(this, buttonTransform, enable);
         if (isTvBox) {
             Utils.setButtonEnabled(this, exoSettings, true);
         } else {
             Utils.setButtonEnabled(this, exoSettings, enable);
+        }
+        updatePrecisionControlsVisibility();
+    }
+
+    private void updatePrecisionControlsVisibility() {
+        boolean showFrameControls = haveMedia && player != null && !player.isPlaying();
+        if (buttonFramePrevious != null) {
+            buttonFramePrevious.setVisibility(showFrameControls ? View.VISIBLE : View.GONE);
+        }
+        if (buttonFrameNext != null) {
+            buttonFrameNext.setVisibility(showFrameControls ? View.VISIBLE : View.GONE);
         }
     }
 

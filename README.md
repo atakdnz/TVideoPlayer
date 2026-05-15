@@ -1,4 +1,12 @@
-# Just (Video) Player 
+# TVideoPlayer
+
+TVideoPlayer is a precision-focused Android video viewer forked from Just Player / exobase. It keeps Media3 / ExoPlayer playback and adds v1 precision-viewer features such as display transforms, custom playback speed, and best-effort frame stepping.
+
+## Upstream
+
+This project is based on Just (Video) Player.
+
+# Original Just (Video) Player README
 
 [![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/moneytoo/Player.svg?logo=github&label=GitHub&cacheSeconds=3600)](https://github.com/moneytoo/Player/releases/latest)
 [![Google Play](https://img.shields.io/endpoint?color=green&logo=google-play&url=https%3A%2F%2Fplay.cuzi.workers.dev%2Fplay%3Fi%3Dcom.brouken.player%26l%3DGoogle%2520Play%26m%3Dv%24version)](https://play.google.com/store/apps/details?id=com.brouken.player)

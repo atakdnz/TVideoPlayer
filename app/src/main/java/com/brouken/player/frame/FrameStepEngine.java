@@ -9,6 +9,7 @@ import android.os.Build;
 
 public class FrameStepEngine {
     private static final float FALLBACK_FPS = 30f;
+    private static final int MAX_PREVIEW_DIMENSION = 1920;
 
     private final Context context;
     private final VideoMetadataReader metadataReader = new VideoMetadataReader();
@@ -43,6 +44,7 @@ public class FrameStepEngine {
         metadata = metadataReader.read(context, uri);
         state.totalFrames = metadata.frameCount;
         state.estimatedFps = metadata.estimatedFps;
+        frameCache.setMaxEntries(isLargeVideo(metadata) ? 3 : 9);
         if (metadata.frameIndexAvailable) {
             state.mode = FrameStepMode.IndexedExactBestEffort;
             state.message = null;
@@ -72,7 +74,7 @@ public class FrameStepEngine {
             int next = state.currentFrameIndex == null ? 0 : state.currentFrameIndex + 1;
             return jumpToFrame(next);
         }
-        estimatedPositionMs += estimatedFrameDurationMs();
+        estimatedPositionMs = clampPositionMs(estimatedPositionMs + estimatedFrameDurationMs());
         return getFrameAtTimeUs(msToUs(estimatedPositionMs));
     }
 
@@ -97,13 +99,14 @@ public class FrameStepEngine {
             state.currentPreviewBitmap = cached;
             return cached;
         }
-        MediaMetadataRetriever retriever = openRetriever();
-        if (retriever == null) {
+        OpenedRetriever openedRetriever = openRetriever();
+        if (openedRetriever == null) {
             state.error = "Frame extraction unavailable for this source.";
             return null;
         }
         try {
-            Bitmap bitmap = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? retriever.getFrameAtIndex(clamped) : null;
+            Bitmap bitmap = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? openedRetriever.retriever.getFrameAtIndex(clamped) : null;
+            bitmap = downscalePreview(bitmap);
             state.currentPreviewBitmap = bitmap;
             frameCache.put(key, bitmap);
             return bitmap;
@@ -111,10 +114,7 @@ public class FrameStepEngine {
             state.error = "Frame extraction unavailable for this source.";
             return null;
         } finally {
-            try {
-                retriever.release();
-            } catch (Exception ignored) {
-            }
+            openedRetriever.close();
         }
     }
 
@@ -134,23 +134,20 @@ public class FrameStepEngine {
     }
 
     public Bitmap getFrameAtTimeUs(long timeUs) {
-        MediaMetadataRetriever retriever = openRetriever();
-        if (retriever == null) {
+        OpenedRetriever openedRetriever = openRetriever();
+        if (openedRetriever == null) {
             state.error = "Frame extraction unavailable for this source.";
             return null;
         }
         try {
-            Bitmap bitmap = retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST);
+            Bitmap bitmap = downscalePreview(openedRetriever.retriever.getFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_CLOSEST));
             state.currentPreviewBitmap = bitmap;
             return bitmap;
         } catch (Exception e) {
             state.error = "Frame extraction unavailable for this source.";
             return null;
         } finally {
-            try {
-                retriever.release();
-            } catch (Exception ignored) {
-            }
+            openedRetriever.close();
         }
     }
 
@@ -163,6 +160,7 @@ public class FrameStepEngine {
 
     public void release() {
         frameCache.clear();
+        state.mode = FrameStepMode.Unavailable;
         state.currentPreviewBitmap = null;
         state.currentFrameIndex = null;
         state.totalFrames = null;
@@ -183,14 +181,44 @@ public class FrameStepEngine {
         return Math.max(1L, Math.round(1000f / fps));
     }
 
-    private MediaMetadataRetriever openRetriever() {
+    private long clampPositionMs(long positionMs) {
+        long max = metadata == null || metadata.durationMs <= 0 ? Long.MAX_VALUE : metadata.durationMs;
+        return Math.max(0L, Math.min(positionMs, max));
+    }
+
+    private boolean isLargeVideo(VideoMetadata metadata) {
+        if (metadata == null || metadata.width == null || metadata.height == null) {
+            return true;
+        }
+        return metadata.width >= 3840 || metadata.height >= 2160 || ((long) metadata.width * metadata.height) > (1920L * 1080L);
+    }
+
+    private Bitmap downscalePreview(Bitmap bitmap) {
+        if (bitmap == null || bitmap.isRecycled()) {
+            return bitmap;
+        }
+        int maxSide = Math.max(bitmap.getWidth(), bitmap.getHeight());
+        if (maxSide <= MAX_PREVIEW_DIMENSION) {
+            return bitmap;
+        }
+        float scale = MAX_PREVIEW_DIMENSION / (float) maxSide;
+        int width = Math.max(1, Math.round(bitmap.getWidth() * scale));
+        int height = Math.max(1, Math.round(bitmap.getHeight() * scale));
+        Bitmap scaled = Bitmap.createScaledBitmap(bitmap, width, height, true);
+        if (scaled != bitmap) {
+            bitmap.recycle();
+        }
+        return scaled;
+    }
+
+    private OpenedRetriever openRetriever() {
         if (uri == null) {
             return null;
         }
         MediaMetadataRetriever retriever = new MediaMetadataRetriever();
         try {
             retriever.setDataSource(context, uri);
-            return retriever;
+            return new OpenedRetriever(retriever, null);
         } catch (Exception firstError) {
             try {
                 AssetFileDescriptor afd = context.getContentResolver().openAssetFileDescriptor(uri, "r");
@@ -199,14 +227,36 @@ public class FrameStepEngine {
                     return null;
                 }
                 retriever.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
-                afd.close();
-                return retriever;
+                return new OpenedRetriever(retriever, afd);
             } catch (Exception secondError) {
                 try {
                     retriever.release();
                 } catch (Exception ignored) {
                 }
                 return null;
+            }
+        }
+    }
+
+    private static class OpenedRetriever {
+        final MediaMetadataRetriever retriever;
+        final AssetFileDescriptor assetFileDescriptor;
+
+        OpenedRetriever(MediaMetadataRetriever retriever, AssetFileDescriptor assetFileDescriptor) {
+            this.retriever = retriever;
+            this.assetFileDescriptor = assetFileDescriptor;
+        }
+
+        void close() {
+            try {
+                retriever.release();
+            } catch (Exception ignored) {
+            }
+            try {
+                if (assetFileDescriptor != null) {
+                    assetFileDescriptor.close();
+                }
+            } catch (Exception ignored) {
             }
         }
     }
