@@ -1637,9 +1637,7 @@ public class PlayerActivity extends Activity {
             currentState = frameStepEngine.getState();
         }
         if (currentState.mode == FrameStepMode.SeekBased) {
-            seekBasedFramePositionMs = seekBasedFramePositionMs == C.TIME_UNSET || !frameModeActive
-                    ? player.getCurrentPosition()
-                    : seekBasedFramePositionMs;
+            seekBasedFramePositionMs = player.getCurrentPosition();
             long frameDurationMs = getSeekBasedFrameDurationMs();
             seekBasedFramePositionMs = clampSeekPositionMs(seekBasedFramePositionMs + (forward ? frameDurationMs : -frameDurationMs));
             frameStepEngine.enterFrameMode(seekBasedFramePositionMs);
