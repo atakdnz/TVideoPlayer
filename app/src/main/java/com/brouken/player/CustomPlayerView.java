@@ -58,6 +58,7 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
     private final ScaleGestureDetector mScaleDetector;
     private float mScaleFactor = 1.f;
     private float mScaleFactorFit;
+    private int resizeModeBeforeZoom = AspectRatioFrameLayout.RESIZE_MODE_FIT;
     private final TransformController transformController = new TransformController();
     Rect systemGestureExclusionRect = new Rect();
 
@@ -334,10 +335,12 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
         if (canScale) {
             final float factor = scaleGestureDetector.getScaleFactor();
             mScaleFactor *= factor + (1 - factor) / 3 * 2;
-            mScaleFactor = Math.max(1.0f, Math.min(mScaleFactor, 4.0f));
+            mScaleFactor = Math.max(mScaleFactorFit, Math.min(mScaleFactor, mScaleFactorFit * 4.0f));
             setScale(mScaleFactor, scaleGestureDetector.getFocusX(), scaleGestureDetector.getFocusY());
+            restoreSurfaceView();
             clearIcon();
-            setCustomErrorMessage((int)(mScaleFactor * 100) + "%");
+            int displayPercent = Math.round(mScaleFactor / mScaleFactorFit * 100f);
+            setCustomErrorMessage(displayPercent + "%");
             return true;
         }
         return false;
@@ -348,8 +351,22 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
         if (PlayerActivity.locked)
             return false;
 
-        mScaleFactor = transformController.getState().zoom;
-        canScale = true;
+        if (getResizeMode() != AspectRatioFrameLayout.RESIZE_MODE_ZOOM) {
+            resizeModeBeforeZoom = getResizeMode();
+            canScale = false;
+            setAspectRatioListener((targetAspectRatio, naturalAspectRatio, aspectRatioMismatch) -> {
+                setAspectRatioListener(null);
+                mScaleFactor = mScaleFactorFit = getScaleFit();
+                canScale = true;
+            });
+            getVideoSurfaceView().setAlpha(0);
+            setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_ZOOM);
+        } else {
+            mScaleFactorFit = getScaleFit();
+            mScaleFactor = getVideoSurfaceView().getScaleX();
+            if (mScaleFactor < mScaleFactorFit) mScaleFactor = mScaleFactorFit;
+            canScale = true;
+        }
         isScaling = true;
         gestureOrientation = Orientation.UNKNOWN;
         hideController();
@@ -360,9 +377,15 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
     public void onScaleEnd(ScaleGestureDetector scaleGestureDetector) {
         if (PlayerActivity.locked)
             return;
+        // If zoomed back to fit level, revert to the previous resize mode
+        if (mScaleFactor - mScaleFactorFit < 0.01f) {
+            setScale(1.f);
+            setResizeMode(resizeModeBeforeZoom);
+        }
         if (PlayerActivity.player != null && !PlayerActivity.player.isPlaying()) {
             showController();
         }
+        restoreSurfaceView();
     }
 
     private void restoreSurfaceView() {
@@ -404,9 +427,7 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
     }
 
     public void setScale(final float scale) {
-        final View videoSurfaceView = getVideoSurfaceView();
-        setScale(scale, videoSurfaceView.getWidth() / 2f + videoSurfaceView.getLeft(),
-                       videoSurfaceView.getHeight() / 2f + videoSurfaceView.getTop());
+        setScale(scale, getWidth() / 2f, getHeight() / 2f);
     }
 
     public void setScale(final float scale, final float focusX, final float focusY) {

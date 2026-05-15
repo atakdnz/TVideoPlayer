@@ -30,8 +30,8 @@ public class TransformController {
     }
 
     public void setZoom(float zoom) {
-        state.zoom = Math.max(1f, Math.min(4f, zoom));
-        if (state.zoom == 1f) {
+        state.zoom = Math.max(0.1f, Math.min(10f, zoom));
+        if (state.zoom <= 1f) {
             state.panX = 0f;
             state.panY = 0f;
         }
