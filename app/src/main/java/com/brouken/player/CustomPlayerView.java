@@ -19,6 +19,8 @@ import androidx.media3.exoplayer.SeekParameters;
 import androidx.media3.ui.AspectRatioFrameLayout;
 import androidx.media3.ui.PlayerView;
 
+import com.brouken.player.transform.TransformController;
+
 import java.util.Collections;
 
 public class CustomPlayerView extends PlayerView implements GestureDetector.OnGestureListener, ScaleGestureDetector.OnScaleGestureListener {
@@ -55,6 +57,7 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
     private final ScaleGestureDetector mScaleDetector;
     private float mScaleFactor = 1.f;
     private float mScaleFactorFit;
+    private final TransformController transformController = new TransformController();
     Rect systemGestureExclusionRect = new Rect();
 
     public final Runnable textClearRunnable = () -> {
@@ -332,7 +335,7 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
         if (PlayerActivity.locked)
             return false;
 
-        mScaleFactor = getVideoSurfaceView().getScaleX();
+        mScaleFactor = transformController.getState().zoom;
         if (getResizeMode() != AspectRatioFrameLayout.RESIZE_MODE_ZOOM) {
             canScale = false;
             setAspectRatioListener((targetAspectRatio, naturalAspectRatio, aspectRatioMismatch) -> {
@@ -411,8 +414,8 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             final View videoSurfaceView = getVideoSurfaceView();
             try {
-                videoSurfaceView.setScaleX(scale);
-                videoSurfaceView.setScaleY(scale);
+                transformController.setZoom(scale);
+                transformController.applyTo(videoSurfaceView);
             } catch (IllegalArgumentException e) {
                 e.printStackTrace();
             }
@@ -433,5 +436,39 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
 
     public void setBrightnessControl(BrightnessControl brightnessControl) {
         this.brightnessControl = brightnessControl;
+    }
+
+    public TransformController getTransformController() {
+        return transformController;
+    }
+
+    public void rotateDisplayLeft() {
+        transformController.rotateLeft();
+        transformController.applyTo(getVideoSurfaceView());
+    }
+
+    public void rotateDisplayRight() {
+        transformController.rotateRight();
+        transformController.applyTo(getVideoSurfaceView());
+    }
+
+    public void toggleHorizontalFlip() {
+        transformController.toggleHorizontalFlip();
+        transformController.applyTo(getVideoSurfaceView());
+    }
+
+    public void toggleVerticalFlip() {
+        transformController.toggleVerticalFlip();
+        transformController.applyTo(getVideoSurfaceView());
+    }
+
+    public void resetDisplayZoom() {
+        transformController.resetZoom();
+        transformController.applyTo(getVideoSurfaceView());
+    }
+
+    public void resetDisplayTransforms() {
+        transformController.resetAll();
+        transformController.applyTo(getVideoSurfaceView());
     }
 }

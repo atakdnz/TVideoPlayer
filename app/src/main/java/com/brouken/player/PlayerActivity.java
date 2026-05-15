@@ -22,6 +22,7 @@ import android.content.UriPermission;
 import android.content.pm.ActivityInfo;
 import android.content.res.Configuration;
 import android.graphics.Color;
+import android.graphics.Bitmap;
 import android.graphics.Typeface;
 import android.graphics.drawable.Icon;
 import android.hardware.display.DisplayManager;
@@ -52,6 +53,8 @@ import android.view.accessibility.CaptioningManager;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
+import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -97,6 +100,10 @@ import androidx.media3.ui.TimeBar;
 
 import com.brouken.player.dtpv.DoubleTapPlayerView;
 import com.brouken.player.dtpv.youtube.YouTubeOverlay;
+import com.brouken.player.frame.FrameStepEngine;
+import com.brouken.player.frame.FrameStepMode;
+import com.brouken.player.frame.FrameStepState;
+import com.brouken.player.frame.VideoMetadata;
 import com.getkeepsafe.taptargetview.TapTarget;
 import com.getkeepsafe.taptargetview.TapTargetView;
 import com.google.android.material.snackbar.Snackbar;
@@ -159,12 +166,19 @@ public class PlayerActivity extends Activity {
     private ImageButton buttonOpen;
     private ImageButton buttonPiP;
     private ImageButton buttonAspectRatio;
+    private ImageButton buttonSpeed;
+    private ImageButton buttonFramePrevious;
+    private ImageButton buttonFrameNext;
+    private ImageButton buttonTransform;
     private ImageButton buttonRotation;
     private ImageButton exoSettings;
     private ImageButton exoPlayPause;
     private ProgressBar loadingProgressBar;
     private PlayerControlView controlView;
     private CustomDefaultTimeBar timeBar;
+    private ImageView framePreview;
+    private TextView frameStatusView;
+    private FrameStepEngine frameStepEngine;
 
     private boolean restoreOrientationLock;
     private boolean restorePlayState;
@@ -423,6 +437,27 @@ public class PlayerActivity extends Activity {
             updatebuttonAspectRatioIcon();
             resetHideCallbacks();
         });
+
+        buttonSpeed = new ImageButton(this, null, 0, R.style.ExoStyledControls_Button_Bottom);
+        buttonSpeed.setImageResource(R.drawable.ic_play_arrow_24dp);
+        buttonSpeed.setContentDescription("Playback speed");
+        buttonSpeed.setOnClickListener(view -> showSpeedDialog());
+
+        buttonFramePrevious = new ImageButton(this, null, 0, R.style.ExoStyledControls_Button_Bottom);
+        buttonFramePrevious.setImageResource(R.drawable.exo_styled_controls_next);
+        buttonFramePrevious.setRotation(180f);
+        buttonFramePrevious.setContentDescription("Previous frame");
+        buttonFramePrevious.setOnClickListener(view -> stepFrame(false));
+
+        buttonFrameNext = new ImageButton(this, null, 0, R.style.ExoStyledControls_Button_Bottom);
+        buttonFrameNext.setImageResource(R.drawable.exo_styled_controls_next);
+        buttonFrameNext.setContentDescription("Next frame");
+        buttonFrameNext.setOnClickListener(view -> stepFrame(true));
+
+        buttonTransform = new ImageButton(this, null, 0, R.style.ExoStyledControls_Button_Bottom);
+        buttonTransform.setImageResource(R.drawable.ic_fit_screen_24dp);
+        buttonTransform.setContentDescription("Display transforms");
+        buttonTransform.setOnClickListener(view -> showTransformDialog());
         if (isTvBox && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             buttonAspectRatio.setOnLongClickListener(v -> {
                 scaleStart();
@@ -444,6 +479,12 @@ public class PlayerActivity extends Activity {
         final int titleViewPaddingHorizontal = Utils.dpToPx(14);
         final int titleViewPaddingVertical = getResources().getDimensionPixelOffset(R.dimen.exo_styled_bottom_bar_time_padding);
         FrameLayout centerView = playerView.findViewById(R.id.exo_controls_background);
+        framePreview = new ImageView(this);
+        framePreview.setBackgroundColor(Color.BLACK);
+        framePreview.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        framePreview.setVisibility(View.GONE);
+        centerView.addView(framePreview, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
         titleView = new TextView(this);
         titleView.setBackgroundResource(R.color.ui_controls_background);
         titleView.setTextColor(Color.WHITE);
@@ -455,6 +496,17 @@ public class PlayerActivity extends Activity {
         titleView.setEllipsize(TextUtils.TruncateAt.END);
         titleView.setTextDirection(View.TEXT_DIRECTION_LOCALE);
         centerView.addView(titleView);
+
+        frameStatusView = new TextView(this);
+        frameStatusView.setBackgroundResource(R.color.ui_controls_background);
+        frameStatusView.setTextColor(Color.WHITE);
+        frameStatusView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        frameStatusView.setPadding(titleViewPaddingHorizontal, titleViewPaddingVertical, titleViewPaddingHorizontal, titleViewPaddingVertical);
+        frameStatusView.setVisibility(View.GONE);
+        FrameLayout.LayoutParams frameStatusParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        frameStatusParams.gravity = android.view.Gravity.BOTTOM | android.view.Gravity.CENTER_HORIZONTAL;
+        frameStatusParams.bottomMargin = Utils.dpToPx(84);
+        centerView.addView(frameStatusView, frameStatusParams);
 
         titleView.setOnLongClickListener(view -> {
             // Prevent FileUriExposedException
@@ -619,6 +671,10 @@ public class PlayerActivity extends Activity {
         controls.addView(buttonOpen);
         controls.addView(exoSubtitle);
         controls.addView(buttonAspectRatio);
+        controls.addView(buttonSpeed);
+        controls.addView(buttonFramePrevious);
+        controls.addView(buttonFrameNext);
+        controls.addView(buttonTransform);
         if (Utils.isPiPSupported(this) && buttonPiP != null) {
             controls.addView(buttonPiP);
         }
@@ -1313,6 +1369,14 @@ public class PlayerActivity extends Activity {
                 mediaItemBuilder.setSubtitleConfigurations(Collections.singletonList(subtitle));
             }
             player.setMediaItem(mediaItemBuilder.build(), mPrefs.getPosition());
+            frameStepEngine = new FrameStepEngine(this);
+            new Thread(() -> {
+                frameStepEngine.prepare(mPrefs.mediaUri);
+                VideoMetadata metadata = frameStepEngine.getMetadata();
+                if (metadata != null && metadata.metadataRotationDegrees != null) {
+                    runOnUiThread(() -> playerView.getTransformController().setMetadataRotationDegrees(metadata.metadataRotationDegrees));
+                }
+            }).start();
 
             try {
                 if (loudnessEnhancer != null) {
@@ -1388,7 +1452,7 @@ public class PlayerActivity extends Activity {
                 mPrefs.updateMeta(getSelectedTrack(C.TRACK_TYPE_AUDIO),
                         getSelectedTrack(C.TRACK_TYPE_TEXT),
                         playerView.getResizeMode(),
-                        playerView.getVideoSurfaceView().getScaleX(),
+                        playerView.getTransformController().getState().zoom,
                         player.getPlaybackParameters().speed);
             }
         }
@@ -1419,8 +1483,135 @@ public class PlayerActivity extends Activity {
             player.release();
             player = null;
         }
+        if (frameStepEngine != null) {
+            frameStepEngine.release();
+        }
+        hideFramePreview();
         titleView.setVisibility(View.GONE);
         updateButtons(false);
+    }
+
+    private void showSpeedDialog() {
+        if (player == null) {
+            return;
+        }
+        final EditText customSpeed = new EditText(this);
+        customSpeed.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        customSpeed.setHint("0.1 - 10.0");
+        final String[] presetLabels = {"0.1x", "0.25x", "0.5x", "0.75x", "1.0x", "1.25x", "1.5x", "2.0x", "3.0x", "4.0x", "5.0x", "10.0x"};
+        final float[] presetValues = {0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f, 3.0f, 4.0f, 5.0f, 10.0f};
+        new AlertDialog.Builder(this)
+                .setTitle("Playback speed")
+                .setView(customSpeed)
+                .setItems(presetLabels, (dialog, which) -> applyPlaybackSpeed(presetValues[which]))
+                .setPositiveButton("Apply custom", (dialog, which) -> {
+                    try {
+                        applyPlaybackSpeed(Float.parseFloat(customSpeed.getText().toString()));
+                    } catch (Exception ignored) {
+                    }
+                })
+                .setNegativeButton("Reset 1.0x", (dialog, which) -> applyPlaybackSpeed(1f))
+                .show();
+    }
+
+    private void applyPlaybackSpeed(float speed) {
+        if (player == null || Float.isNaN(speed) || speed <= 0f) {
+            return;
+        }
+        float clamped = Math.max(0.1f, Math.min(10f, speed));
+        player.setPlaybackSpeed(clamped);
+        mPrefs.speed = clamped;
+        Utils.showText(playerView, String.format(Locale.US, "%.2fx", clamped), 1200);
+    }
+
+    private void showTransformDialog() {
+        final String[] actions = {
+                "Rotate left",
+                "Rotate right",
+                "Flip horizontal",
+                "Flip vertical",
+                "Reset zoom",
+                "Reset all transforms"
+        };
+        new AlertDialog.Builder(this)
+                .setTitle("Display transforms")
+                .setItems(actions, (dialog, which) -> {
+                    switch (which) {
+                        case 0:
+                            playerView.rotateDisplayLeft();
+                            break;
+                        case 1:
+                            playerView.rotateDisplayRight();
+                            break;
+                        case 2:
+                            playerView.toggleHorizontalFlip();
+                            break;
+                        case 3:
+                            playerView.toggleVerticalFlip();
+                            break;
+                        case 4:
+                            playerView.resetDisplayZoom();
+                            break;
+                        case 5:
+                            playerView.resetDisplayTransforms();
+                            break;
+                    }
+                    applyFramePreviewTransform();
+                    resetHideCallbacks();
+                })
+                .show();
+    }
+
+    private void stepFrame(boolean forward) {
+        if (player == null || frameStepEngine == null || mPrefs.mediaUri == null) {
+            return;
+        }
+        player.pause();
+        new Thread(() -> {
+            FrameStepState state = frameStepEngine.getState();
+            Bitmap bitmap;
+            if (!state.isFrameMode() || state.currentPreviewBitmap == null) {
+                bitmap = frameStepEngine.enterFrameMode(player.getCurrentPosition());
+            } else {
+                bitmap = forward ? frameStepEngine.nextFrame() : frameStepEngine.previousFrame();
+            }
+            runOnUiThread(() -> showFramePreview(bitmap));
+        }).start();
+    }
+
+    private void showFramePreview(Bitmap bitmap) {
+        FrameStepState state = frameStepEngine == null ? null : frameStepEngine.getState();
+        if (bitmap != null) {
+            framePreview.setImageBitmap(bitmap);
+            framePreview.setVisibility(View.VISIBLE);
+            applyFramePreviewTransform();
+        }
+        if (state != null) {
+            if (state.mode == FrameStepMode.IndexedExactBestEffort && state.currentFrameIndex != null && state.totalFrames != null) {
+                frameStatusView.setText("Frame " + (state.currentFrameIndex + 1) + " / " + state.totalFrames);
+            } else if (state.mode == FrameStepMode.TimestampEstimated) {
+                frameStatusView.setText("Estimated frame step\nFrame count unavailable");
+            } else if (state.message != null) {
+                frameStatusView.setText(state.message);
+            }
+            frameStatusView.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void hideFramePreview() {
+        if (framePreview != null) {
+            framePreview.setImageDrawable(null);
+            framePreview.setVisibility(View.GONE);
+        }
+        if (frameStatusView != null) {
+            frameStatusView.setVisibility(View.GONE);
+        }
+    }
+
+    private void applyFramePreviewTransform() {
+        if (framePreview != null && playerView != null) {
+            playerView.getTransformController().applyTo(framePreview);
+        }
     }
 
     private class PlayerListener implements Player.Listener {
@@ -2202,6 +2393,10 @@ public class PlayerActivity extends Activity {
 
         @Player.State int state = player.getPlaybackState();
         if (state == Player.STATE_IDLE || state == Player.STATE_ENDED || !player.getPlayWhenReady()) {
+            if (frameStepEngine != null && frameStepEngine.getState().isFrameMode()) {
+                player.seekTo(frameStepEngine.selectedPositionMs());
+            }
+            hideFramePreview();
             shortControllerTimeout = true;
             androidx.media3.common.util.Util.handlePlayButtonAction(player);
         } else {
