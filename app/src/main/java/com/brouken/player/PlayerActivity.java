@@ -1630,6 +1630,12 @@ public class PlayerActivity extends Activity {
         if (frameStepLoading) {
             return;
         }
+        // Capture position BEFORE pausing — pause is async and getCurrentPosition()
+        // may return 0 or stale values if read after pause() before it settles.
+        long capturedPositionMs = player.getCurrentPosition();
+        if (capturedPositionMs <= 0L) {
+            capturedPositionMs = Math.max(0L, player.getContentPosition());
+        }
         player.pause();
         FrameStepState currentState = frameStepEngine.getState();
         if (currentState.mode == FrameStepMode.Unavailable) {
@@ -1637,9 +1643,9 @@ public class PlayerActivity extends Activity {
             currentState = frameStepEngine.getState();
         }
         if (currentState.mode == FrameStepMode.SeekBased) {
-            seekBasedFramePositionMs = player.getCurrentPosition();
-            if (seekBasedFramePositionMs <= 0L) {
-                seekBasedFramePositionMs = Math.max(0L, player.getContentPosition());
+            // Only capture from player on first entry; subsequent steps use the tracked position.
+            if (!frameModeActive || seekBasedFramePositionMs == C.TIME_UNSET) {
+                seekBasedFramePositionMs = capturedPositionMs;
             }
             long frameDurationMs = getSeekBasedFrameDurationMs();
             seekBasedFramePositionMs = clampSeekPositionMs(seekBasedFramePositionMs + (forward ? frameDurationMs : -frameDurationMs));
@@ -1655,14 +1661,14 @@ public class PlayerActivity extends Activity {
         final int requestId = ++frameStepRequestId;
         frameStatusView.setText("Loading frame...");
         frameStatusView.setVisibility(View.VISIBLE);
+        final long positionForFrameMode = capturedPositionMs;
         new Thread(() -> {
             Bitmap bitmap = null;
             Throwable failure = null;
             try {
                 FrameStepState state = frameStepEngine.getState();
-                long currentPositionMs = player == null ? 0L : player.getCurrentPosition();
                 if (!frameModeActive) {
-                    frameStepEngine.enterFrameMode(currentPositionMs);
+                    frameStepEngine.enterFrameMode(positionForFrameMode);
                 }
                 bitmap = forward ? frameStepEngine.nextFrame() : frameStepEngine.previousFrame();
             } catch (Throwable throwable) {

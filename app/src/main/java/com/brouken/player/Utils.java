@@ -758,7 +758,7 @@ class Utils {
     }
 
     public static float normalizeScaleFactor(float scaleFactor, float min) {
-        return Math.max(min, Math.min(scaleFactor, 2.0f));
+        return Math.max(min, Math.min(scaleFactor, 4.0f));
     }
 
     public static boolean isTablet(Context context) {
