@@ -183,6 +183,7 @@ public class PlayerActivity extends Activity {
     private int frameStepRequestId = 0;
     private boolean frameStepLoading = false;
     private boolean frameModeActive = false;
+    private long seekBasedFramePositionMs = C.TIME_UNSET;
 
     private boolean restoreOrientationLock;
     private boolean restorePlayState;
@@ -1636,17 +1637,15 @@ public class PlayerActivity extends Activity {
             currentState = frameStepEngine.getState();
         }
         if (currentState.mode == FrameStepMode.SeekBased) {
-            if (!frameModeActive) {
-                frameStepEngine.enterFrameMode(player.getCurrentPosition());
-            }
-            if (forward) {
-                frameStepEngine.nextFrame();
-            } else {
-                frameStepEngine.previousFrame();
-            }
+            seekBasedFramePositionMs = seekBasedFramePositionMs == C.TIME_UNSET || !frameModeActive
+                    ? player.getCurrentPosition()
+                    : seekBasedFramePositionMs;
+            long frameDurationMs = getSeekBasedFrameDurationMs();
+            seekBasedFramePositionMs = clampSeekPositionMs(seekBasedFramePositionMs + (forward ? frameDurationMs : -frameDurationMs));
+            frameStepEngine.enterFrameMode(seekBasedFramePositionMs);
             frameModeActive = true;
             player.setSeekParameters(SeekParameters.EXACT);
-            player.seekTo(frameStepEngine.selectedPositionMs());
+            player.seekTo(seekBasedFramePositionMs);
             hideFrameBitmapOnly();
             showFramePreview(null);
             return;
@@ -1683,6 +1682,10 @@ public class PlayerActivity extends Activity {
                 if (player != null && frameStepEngine != null && frameStepEngine.getState().mode == FrameStepMode.TimestampEstimated) {
                     player.setSeekParameters(SeekParameters.EXACT);
                     player.seekTo(frameStepEngine.selectedPositionMs());
+                } else if (player != null && frameStepEngine != null && frameStepEngine.getState().mode == FrameStepMode.SeekBased) {
+                    seekBasedFramePositionMs = frameStepEngine.selectedPositionMs();
+                    player.setSeekParameters(SeekParameters.EXACT);
+                    player.seekTo(seekBasedFramePositionMs);
                 }
             });
         }).start();
@@ -1708,7 +1711,7 @@ public class PlayerActivity extends Activity {
                 if (state.message != null) {
                     frameStatusView.setText(state.message);
                 } else {
-                    frameStatusView.setText("Seek-based frame step\nFrame preview unavailable for this source.");
+                    frameStatusView.setText("Seek-based frame step\nRendered by player");
                 }
             } else if (state.error != null) {
                 frameStatusView.setText(state.error);
@@ -1732,6 +1735,7 @@ public class PlayerActivity extends Activity {
         frameStepRequestId++;
         frameStepLoading = false;
         frameModeActive = false;
+        seekBasedFramePositionMs = C.TIME_UNSET;
         if (framePreview != null) {
             framePreview.setImageDrawable(null);
             framePreview.setVisibility(View.GONE);
@@ -1745,6 +1749,26 @@ public class PlayerActivity extends Activity {
         if (framePreview != null && playerView != null) {
             playerView.getTransformController().applyTo(framePreview);
         }
+    }
+
+    private long getSeekBasedFrameDurationMs() {
+        Format format = player == null ? null : player.getVideoFormat();
+        if (format != null && format.frameRate > 0f) {
+            return Math.max(1L, Math.round(1000f / format.frameRate));
+        }
+        VideoMetadata metadata = frameStepEngine == null ? null : frameStepEngine.getMetadata();
+        if (metadata != null && metadata.estimatedFps != null && metadata.estimatedFps > 0f) {
+            return Math.max(1L, Math.round(1000f / metadata.estimatedFps));
+        }
+        return 33L;
+    }
+
+    private long clampSeekPositionMs(long positionMs) {
+        long durationMs = player == null ? C.TIME_UNSET : player.getDuration();
+        if (durationMs == C.TIME_UNSET || durationMs <= 0) {
+            return Math.max(0L, positionMs);
+        }
+        return Math.max(0L, Math.min(positionMs, durationMs));
     }
 
     private class PlayerListener implements Player.Listener {
@@ -2530,7 +2554,7 @@ public class PlayerActivity extends Activity {
 
         @Player.State int state = player.getPlaybackState();
         if (state == Player.STATE_IDLE || state == Player.STATE_ENDED || !player.getPlayWhenReady()) {
-            if (frameModeActive && frameStepEngine != null && frameStepEngine.getState().isFrameMode()) {
+            if (frameModeActive && frameStepEngine != null && frameStepEngine.getState().mode == FrameStepMode.IndexedExactBestEffort) {
                 player.seekTo(frameStepEngine.selectedPositionMs());
             }
             hideFramePreview();

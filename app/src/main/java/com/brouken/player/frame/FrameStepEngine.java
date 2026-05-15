@@ -55,7 +55,7 @@ public class FrameStepEngine {
             state.message = "Estimated frame step";
         } else {
             state.mode = FrameStepMode.SeekBased;
-            state.message = "Seek-based frame step\nFrame preview unavailable for this source.";
+            state.message = "Seek-based frame step\nRendered by player";
         }
     }
 
@@ -70,7 +70,7 @@ public class FrameStepEngine {
             return jumpToFrame(state.currentFrameIndex);
         }
         if (state.mode == FrameStepMode.SeekBased) {
-            state.message = "Seek-based frame step\nFrame preview unavailable for this source.";
+            state.message = "Seek-based frame step\nRendered by player";
             return null;
         }
         return getFrameAtTimeUs(msToUs(estimatedPositionMs));
@@ -83,7 +83,7 @@ public class FrameStepEngine {
         }
         estimatedPositionMs = clampPositionMs(estimatedPositionMs + estimatedFrameDurationMs());
         if (state.mode == FrameStepMode.SeekBased) {
-            state.message = "Seek-based frame step\nFrame preview unavailable for this source.";
+            state.message = "Seek-based frame step\nRendered by player";
             state.error = null;
             return null;
         }
@@ -97,7 +97,7 @@ public class FrameStepEngine {
         }
         estimatedPositionMs = Math.max(0L, estimatedPositionMs - estimatedFrameDurationMs());
         if (state.mode == FrameStepMode.SeekBased) {
-            state.message = "Seek-based frame step\nFrame preview unavailable for this source.";
+            state.message = "Seek-based frame step\nRendered by player";
             state.error = null;
             return null;
         }
@@ -127,9 +127,10 @@ public class FrameStepEngine {
         OpenedRetriever openedRetriever = openRetriever();
         if (openedRetriever == null) {
             state.mode = FrameStepMode.SeekBased;
+            estimatedPositionMs = frameIndexToTimestampMs(clamped);
             state.currentFrameIndex = null;
             state.totalFrames = null;
-            state.message = "Seek-based frame step\nFrame preview unavailable for this source.";
+            state.message = "Seek-based frame step\nRendered by player";
             state.error = null;
             return null;
         }
