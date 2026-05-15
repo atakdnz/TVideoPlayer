@@ -345,8 +345,8 @@ public class PlayerActivity extends Activity {
 
         playerView.setShowNextButton(false);
         playerView.setShowPreviousButton(false);
-        playerView.setShowFastForwardButton(false);
-        playerView.setShowRewindButton(false);
+        playerView.setShowFastForwardButton(true);
+        playerView.setShowRewindButton(true);
 
         playerView.setRepeatToggleModes(Player.REPEAT_MODE_ONE);
 
@@ -448,16 +448,15 @@ public class PlayerActivity extends Activity {
         buttonSpeed.setContentDescription("Playback speed");
         buttonSpeed.setOnClickListener(view -> showSpeedDialog());
 
-        buttonFramePrevious = new ImageButton(this, null, 0, R.style.ExoStyledControls_Button_Bottom);
-        buttonFramePrevious.setImageResource(R.drawable.exo_styled_controls_next);
-        buttonFramePrevious.setRotation(180f);
-        buttonFramePrevious.setContentDescription("Previous frame");
-        buttonFramePrevious.setOnClickListener(view -> stepFrame(false));
+        buttonFramePrevious = playerView.findViewById(R.id.exo_frame_prev);
+        if (buttonFramePrevious != null) {
+            buttonFramePrevious.setOnClickListener(view -> stepFrame(false));
+        }
 
-        buttonFrameNext = new ImageButton(this, null, 0, R.style.ExoStyledControls_Button_Bottom);
-        buttonFrameNext.setImageResource(R.drawable.exo_styled_controls_next);
-        buttonFrameNext.setContentDescription("Next frame");
-        buttonFrameNext.setOnClickListener(view -> stepFrame(true));
+        buttonFrameNext = playerView.findViewById(R.id.exo_frame_next);
+        if (buttonFrameNext != null) {
+            buttonFrameNext.setOnClickListener(view -> stepFrame(true));
+        }
 
         buttonTransform = new ImageButton(this, null, 0, R.style.ExoStyledControls_Button_Bottom);
         buttonTransform.setImageResource(R.drawable.ic_fit_screen_24dp);
@@ -677,8 +676,6 @@ public class PlayerActivity extends Activity {
         controls.addView(exoSubtitle);
         controls.addView(buttonAspectRatio);
         controls.addView(buttonSpeed);
-        controls.addView(buttonFramePrevious);
-        controls.addView(buttonFrameNext);
         controls.addView(buttonTransform);
         if (Utils.isPiPSupported(this) && buttonPiP != null) {
             controls.addView(buttonPiP);
@@ -1288,6 +1285,8 @@ public class PlayerActivity extends Activity {
 
         ExoPlayer.Builder playerBuilder = new ExoPlayer.Builder(this, renderersFactory)
                 .setTrackSelector(trackSelector)
+                .setSeekBackIncrementMs(10000)
+                .setSeekForwardIncrementMs(10000)
                 .setMediaSourceFactory(new DefaultMediaSourceFactory(this, extractorsFactory));
 
         if (haveMedia && isNetworkUri) {
