@@ -37,6 +37,35 @@ public class TransformController {
         }
     }
 
+    public void setUserRotationDegrees(int degrees) {
+        state.userRotationDegrees = normalizeRotation(degrees);
+    }
+
+    public void setFlipHorizontal(boolean flipHorizontal) {
+        state.flipHorizontal = flipHorizontal;
+    }
+
+    public void setFlipVertical(boolean flipVertical) {
+        state.flipVertical = flipVertical;
+    }
+
+    public void setPan(float panX, float panY) {
+        state.panX = panX;
+        state.panY = panY;
+    }
+
+    public void panBy(float dx, float dy, int containerWidth, int containerHeight) {
+        if (state.zoom <= 1f) {
+            state.panX = 0f;
+            state.panY = 0f;
+            return;
+        }
+        float maxX = Math.max(0f, containerWidth * (state.zoom - 1f) / 2f);
+        float maxY = Math.max(0f, containerHeight * (state.zoom - 1f) / 2f);
+        state.panX = clamp(state.panX + dx, -maxX, maxX);
+        state.panY = clamp(state.panY + dy, -maxY, maxY);
+    }
+
     public void resetZoom() {
         state.resetZoom();
     }
@@ -64,5 +93,9 @@ public class TransformController {
             normalized += 360;
         }
         return normalized;
+    }
+
+    private static float clamp(float value, float min, float max) {
+        return Math.max(min, Math.min(max, value));
     }
 }

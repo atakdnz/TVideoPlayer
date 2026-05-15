@@ -104,6 +104,7 @@ import com.brouken.player.frame.FrameStepEngine;
 import com.brouken.player.frame.FrameStepMode;
 import com.brouken.player.frame.FrameStepState;
 import com.brouken.player.frame.VideoMetadata;
+import com.brouken.player.transform.VideoTransformState;
 import com.getkeepsafe.taptargetview.TapTarget;
 import com.getkeepsafe.taptargetview.TapTargetView;
 import com.google.android.material.snackbar.Snackbar;
@@ -1344,6 +1345,12 @@ public class PlayerActivity extends Activity {
             } else {
                 playerView.setScale(1.f);
             }
+            playerView.getTransformController().setUserRotationDegrees(mPrefs.userRotation);
+            playerView.getTransformController().setFlipHorizontal(mPrefs.flipHorizontal);
+            playerView.getTransformController().setFlipVertical(mPrefs.flipVertical);
+            playerView.getTransformController().setZoom(mPrefs.scale);
+            playerView.getTransformController().setPan(mPrefs.panX, mPrefs.panY);
+            playerView.applyDisplayTransforms();
             updatebuttonAspectRatioIcon();
 
             MediaItem.Builder mediaItemBuilder = new MediaItem.Builder()
@@ -1454,6 +1461,15 @@ public class PlayerActivity extends Activity {
                         playerView.getResizeMode(),
                         playerView.getTransformController().getState().zoom,
                         player.getPlaybackParameters().speed);
+                VideoTransformState transformState = playerView.getTransformController().getState();
+                mPrefs.updateTransformState(transformState.userRotationDegrees,
+                        transformState.flipHorizontal,
+                        transformState.flipVertical,
+                        transformState.zoom,
+                        transformState.panX,
+                        transformState.panY,
+                        playerView.getResizeMode(),
+                        player.getPlaybackParameters().speed);
             }
         }
     }
@@ -1531,7 +1547,8 @@ public class PlayerActivity extends Activity {
                 "Flip horizontal",
                 "Flip vertical",
                 "Reset zoom",
-                "Reset all transforms"
+                "Reset all transforms",
+                "Info"
         };
         new AlertDialog.Builder(this)
                 .setTitle("Display transforms")
@@ -1555,10 +1572,50 @@ public class PlayerActivity extends Activity {
                         case 5:
                             playerView.resetDisplayTransforms();
                             break;
+                        case 6:
+                            showInfoDialog();
+                            break;
                     }
                     applyFramePreviewTransform();
                     resetHideCallbacks();
                 })
+                .show();
+    }
+
+    private void showInfoDialog() {
+        VideoTransformState transformState = playerView.getTransformController().getState();
+        VideoMetadata metadata = frameStepEngine == null ? null : frameStepEngine.getMetadata();
+        FrameStepState frameState = frameStepEngine == null ? null : frameStepEngine.getState();
+        StringBuilder info = new StringBuilder();
+        info.append("Filename: ").append(mPrefs.mediaUri == null ? "None" : Utils.getFileName(this, mPrefs.mediaUri)).append('\n');
+        info.append("URI type: ").append(mPrefs.mediaUri == null ? "None" : mPrefs.mediaUri.getScheme()).append('\n');
+        if (metadata != null) {
+            info.append("Duration: ").append(metadata.durationMs).append(" ms\n");
+            info.append("Resolution: ").append(metadata.width).append(" x ").append(metadata.height).append('\n');
+            info.append("Metadata rotation: ").append(metadata.metadataRotationDegrees).append('\n');
+            info.append("Frame count: ").append(metadata.frameCount).append('\n');
+            info.append("Estimated FPS: ").append(metadata.estimatedFps).append('\n');
+            info.append("Retriever access: ").append(metadata.retrieverAccessMode).append('\n');
+        }
+        info.append("User rotation: ").append(transformState.userRotationDegrees).append('\n');
+        info.append("Effective rotation: ").append(transformState.effectiveRotationDegrees()).append('\n');
+        info.append("Flip horizontal: ").append(transformState.flipHorizontal).append('\n');
+        info.append("Flip vertical: ").append(transformState.flipVertical).append('\n');
+        info.append("Zoom: ").append((int)(transformState.zoom * 100)).append("%\n");
+        info.append("Pan: ").append((int)transformState.panX).append(", ").append((int)transformState.panY).append('\n');
+        info.append("Resize mode: ").append(playerView.getResizeMode()).append('\n');
+        info.append("Playback speed: ").append(player == null ? "None" : player.getPlaybackParameters().speed).append('\n');
+        info.append("Surface type: ").append(playerView.getVideoSurfaceView() == null ? "None" : playerView.getVideoSurfaceView().getClass().getSimpleName()).append('\n');
+        if (frameState != null) {
+            info.append("Frame stepping mode: ").append(frameState.mode).append('\n');
+            info.append("Current frame: ").append(frameState.currentFrameIndex).append('\n');
+            info.append("Frame message: ").append(frameState.message).append('\n');
+            info.append("Frame error: ").append(frameState.error).append('\n');
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Video info")
+                .setMessage(info.toString())
+                .setPositiveButton(android.R.string.ok, null)
                 .show();
     }
 

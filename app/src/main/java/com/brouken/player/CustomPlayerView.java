@@ -208,6 +208,13 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
                 motionEvent.getY() > getHeight() - IGNORE_BORDER || motionEvent.getX() > getWidth() - IGNORE_BORDER)
             return false;
 
+        if (transformController.getState().zoom > 1f && PlayerActivity.player != null && !PlayerActivity.player.isPlaying()) {
+            transformController.panBy(-distanceX, -distanceY, getWidth(), getHeight());
+            transformController.applyTo(getVideoSurfaceView());
+            setCustomErrorMessage((int)(transformController.getState().zoom * 100) + "%");
+            return true;
+        }
+
         if (gestureScrollY == 0 || gestureScrollX == 0) {
             gestureScrollY = 0.0001f;
             gestureScrollX = 0.0001f;
@@ -469,6 +476,10 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
 
     public void resetDisplayTransforms() {
         transformController.resetAll();
+        transformController.applyTo(getVideoSurfaceView());
+    }
+
+    public void applyDisplayTransforms() {
         transformController.applyTo(getVideoSurfaceView());
     }
 }
