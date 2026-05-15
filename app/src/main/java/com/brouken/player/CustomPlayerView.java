@@ -51,6 +51,7 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
     private boolean restorePlayState;
     private boolean canScale = true;
     private boolean isHandledLongPress = false;
+    private boolean isScaling = false;
     public long keySeekStart = -1;
     public int volumeUpsInRow = 0;
 
@@ -114,7 +115,7 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
             PlayerActivity.restoreControllerTimeout = false;
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && gestureOrientation == Orientation.UNKNOWN)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N)
             mScaleDetector.onTouchEvent(ev);
 
         switch (ev.getActionMasked()) {
@@ -130,6 +131,12 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
                 if (handleTouch) {
+                    if (isScaling) {
+                        // Pinch zoom just ended — only clear the percentage text, keep zoom state
+                        isScaling = false;
+                        postDelayed(textClearRunnable, MESSAGE_TIMEOUT_TOUCH);
+                        break;
+                    }
                     if (gestureOrientation == Orientation.HORIZONTAL) {
                         setCustomErrorMessage(null);
                     } else {
@@ -200,7 +207,7 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
 
     @Override
     public boolean onScroll(MotionEvent motionEvent, MotionEvent motionEvent1, float distanceX, float distanceY) {
-        if (mScaleDetector.isInProgress() || PlayerActivity.player == null || PlayerActivity.locked)
+        if (mScaleDetector.isInProgress() || isScaling || PlayerActivity.player == null || PlayerActivity.locked)
             return false;
 
         // Exclude edge areas
@@ -328,7 +335,7 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
             final float factor = scaleGestureDetector.getScaleFactor();
             mScaleFactor *= factor + (1 - factor) / 3 * 2;
             mScaleFactor = Math.max(1.0f, Math.min(mScaleFactor, 4.0f));
-            setScale(mScaleFactor);
+            setScale(mScaleFactor, scaleGestureDetector.getFocusX(), scaleGestureDetector.getFocusY());
             clearIcon();
             setCustomErrorMessage((int)(mScaleFactor * 100) + "%");
             return true;
@@ -343,6 +350,8 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
 
         mScaleFactor = transformController.getState().zoom;
         canScale = true;
+        isScaling = true;
+        gestureOrientation = Orientation.UNKNOWN;
         hideController();
         return true;
     }
@@ -395,11 +404,17 @@ public class CustomPlayerView extends PlayerView implements GestureDetector.OnGe
     }
 
     public void setScale(final float scale) {
+        final View videoSurfaceView = getVideoSurfaceView();
+        setScale(scale, videoSurfaceView.getWidth() / 2f + videoSurfaceView.getLeft(),
+                       videoSurfaceView.getHeight() / 2f + videoSurfaceView.getTop());
+    }
+
+    public void setScale(final float scale, final float focusX, final float focusY) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             final View videoSurfaceView = getVideoSurfaceView();
             try {
-                videoSurfaceView.setPivotX(videoSurfaceView.getWidth() / 2f);
-                videoSurfaceView.setPivotY(videoSurfaceView.getHeight() / 2f);
+                videoSurfaceView.setPivotX(focusX - videoSurfaceView.getLeft());
+                videoSurfaceView.setPivotY(focusY - videoSurfaceView.getTop());
                 transformController.setZoom(scale);
                 transformController.applyTo(videoSurfaceView);
             } catch (IllegalArgumentException e) {
