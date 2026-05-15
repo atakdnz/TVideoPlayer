@@ -54,8 +54,8 @@ public class FrameStepEngine {
             state.mode = FrameStepMode.TimestampEstimated;
             state.message = "Estimated frame step";
         } else {
-            state.mode = FrameStepMode.TimestampEstimated;
-            state.message = "Estimated frame step\nFrame preview unavailable for this source.";
+            state.mode = FrameStepMode.SeekBased;
+            state.message = "Seek-based frame step\nFrame preview unavailable for this source.";
         }
     }
 
@@ -64,9 +64,14 @@ public class FrameStepEngine {
             return null;
         }
         estimatedPositionMs = Math.max(0L, currentPositionMs);
+        state.error = null;
         if (state.mode == FrameStepMode.IndexedExactBestEffort) {
             state.currentFrameIndex = timestampMsToFrameIndex(currentPositionMs);
             return jumpToFrame(state.currentFrameIndex);
+        }
+        if (state.mode == FrameStepMode.SeekBased) {
+            state.message = "Seek-based frame step\nFrame preview unavailable for this source.";
+            return null;
         }
         return getFrameAtTimeUs(msToUs(estimatedPositionMs));
     }
@@ -77,6 +82,11 @@ public class FrameStepEngine {
             return jumpToFrame(next);
         }
         estimatedPositionMs = clampPositionMs(estimatedPositionMs + estimatedFrameDurationMs());
+        if (state.mode == FrameStepMode.SeekBased) {
+            state.message = "Seek-based frame step\nFrame preview unavailable for this source.";
+            state.error = null;
+            return null;
+        }
         return getFrameAtTimeUs(msToUs(estimatedPositionMs));
     }
 
@@ -86,6 +96,11 @@ public class FrameStepEngine {
             return jumpToFrame(previous);
         }
         estimatedPositionMs = Math.max(0L, estimatedPositionMs - estimatedFrameDurationMs());
+        if (state.mode == FrameStepMode.SeekBased) {
+            state.message = "Seek-based frame step\nFrame preview unavailable for this source.";
+            state.error = null;
+            return null;
+        }
         return getFrameAtTimeUs(msToUs(estimatedPositionMs));
     }
 
@@ -111,12 +126,11 @@ public class FrameStepEngine {
         }
         OpenedRetriever openedRetriever = openRetriever();
         if (openedRetriever == null) {
-            if (state.mode == FrameStepMode.TimestampEstimated) {
-                state.message = "Estimated frame step\nFrame preview unavailable for this source.";
-                state.error = null;
-            } else {
-                state.error = "Frame extraction unavailable for this source.";
-            }
+            state.mode = FrameStepMode.SeekBased;
+            state.currentFrameIndex = null;
+            state.totalFrames = null;
+            state.message = "Seek-based frame step\nFrame preview unavailable for this source.";
+            state.error = null;
             return null;
         }
         try {

@@ -13,6 +13,6 @@ public class FrameStepState {
     public String error;
 
     public boolean isFrameMode() {
-        return mode == FrameStepMode.IndexedExactBestEffort || mode == FrameStepMode.TimestampEstimated;
+        return mode == FrameStepMode.IndexedExactBestEffort || mode == FrameStepMode.TimestampEstimated || mode == FrameStepMode.SeekBased;
     }
 }

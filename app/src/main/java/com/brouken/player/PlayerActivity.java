@@ -1630,6 +1630,27 @@ public class PlayerActivity extends Activity {
             return;
         }
         player.pause();
+        FrameStepState currentState = frameStepEngine.getState();
+        if (currentState.mode == FrameStepMode.Unavailable) {
+            frameStepEngine.prepare(mPrefs.mediaUri);
+            currentState = frameStepEngine.getState();
+        }
+        if (currentState.mode == FrameStepMode.SeekBased) {
+            if (!frameModeActive) {
+                frameStepEngine.enterFrameMode(player.getCurrentPosition());
+            }
+            if (forward) {
+                frameStepEngine.nextFrame();
+            } else {
+                frameStepEngine.previousFrame();
+            }
+            frameModeActive = true;
+            player.setSeekParameters(SeekParameters.EXACT);
+            player.seekTo(frameStepEngine.selectedPositionMs());
+            hideFrameBitmapOnly();
+            showFramePreview(null);
+            return;
+        }
         frameStepLoading = true;
         final int requestId = ++frameStepRequestId;
         frameStatusView.setText("Loading frame...");
@@ -1639,16 +1660,11 @@ public class PlayerActivity extends Activity {
             Throwable failure = null;
             try {
                 FrameStepState state = frameStepEngine.getState();
-                if (state.mode == FrameStepMode.Unavailable) {
-                    frameStepEngine.prepare(mPrefs.mediaUri);
-                    state = frameStepEngine.getState();
-                }
                 long currentPositionMs = player == null ? 0L : player.getCurrentPosition();
-                if (!state.isFrameMode() || state.currentPreviewBitmap == null) {
-                    bitmap = frameStepEngine.enterFrameMode(currentPositionMs);
-                } else {
-                    bitmap = forward ? frameStepEngine.nextFrame() : frameStepEngine.previousFrame();
+                if (!frameModeActive) {
+                    frameStepEngine.enterFrameMode(currentPositionMs);
                 }
+                bitmap = forward ? frameStepEngine.nextFrame() : frameStepEngine.previousFrame();
             } catch (Throwable throwable) {
                 failure = throwable;
             }
@@ -1665,6 +1681,7 @@ public class PlayerActivity extends Activity {
                 frameModeActive = frameStepEngine != null && frameStepEngine.getState().isFrameMode();
                 showFramePreview(resultBitmap);
                 if (player != null && frameStepEngine != null && frameStepEngine.getState().mode == FrameStepMode.TimestampEstimated) {
+                    player.setSeekParameters(SeekParameters.EXACT);
                     player.seekTo(frameStepEngine.selectedPositionMs());
                 }
             });
@@ -1687,6 +1704,12 @@ public class PlayerActivity extends Activity {
                 } else {
                     frameStatusView.setText("Estimated frame step\nFrame count unavailable");
                 }
+            } else if (state.mode == FrameStepMode.SeekBased) {
+                if (state.message != null) {
+                    frameStatusView.setText(state.message);
+                } else {
+                    frameStatusView.setText("Seek-based frame step\nFrame preview unavailable for this source.");
+                }
             } else if (state.error != null) {
                 frameStatusView.setText(state.error);
             } else if (state.message != null) {
@@ -1695,6 +1718,13 @@ public class PlayerActivity extends Activity {
                 frameStatusView.setText("Frame extraction unavailable for this source.");
             }
             frameStatusView.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void hideFrameBitmapOnly() {
+        if (framePreview != null) {
+            framePreview.setImageDrawable(null);
+            framePreview.setVisibility(View.GONE);
         }
     }
 
