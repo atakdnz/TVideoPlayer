@@ -1,10 +1,25 @@
 # TVideoPlayer
 
-TVideoPlayer is a precision-focused Android video viewer forked from Just Player / exobase. It keeps Media3 / ExoPlayer playback and adds v1 precision-viewer features such as display transforms, custom playback speed, and best-effort frame stepping.
+TVideoPlayer is a precision-focused Android video viewer forked from Just Player / exobase. It keeps Media3 / ExoPlayer playback and adds v1 precision-viewer features for inspecting local videos.
 
-## Upstream
+## TVideoPlayer Features
 
-This project is based on Just (Video) Player.
+- Local video playback through Android file picker, share/open-with flows, and Media3 / ExoPlayer.
+- Manual display transforms: rotate, horizontal flip, vertical flip, pinch zoom, pan, reset zoom, and reset all.
+- Pinch zoom around the pinch focal point.
+- Playback speed presets and custom speed from `0.1x` to `10x`.
+- Best-effort indexed frame stepping when Android exposes frame indexes.
+- Estimated seek-based frame stepping for playable videos where frame bitmap extraction is unavailable.
+- Per-video persistence for playback position, speed, rotation, flips, zoom, pan, and resize mode.
+- Debug/info sheet for surface type, metadata, transform state, frame mode, and retriever access.
+
+## Downloads
+
+Builds from this fork are published on the [TVideoPlayer releases page](https://github.com/atakdnz/TVideoPlayer/releases).
+
+## Upstream And Attribution
+
+This project is based on Just (Video) Player / exobase. The original project remains the source for the mature playback foundation, Media3 integration, subtitles/audio track behavior, PiP, gestures, and broad format support. The original README is preserved below for attribution and upstream documentation.
 
 # Original Just (Video) Player README
 
