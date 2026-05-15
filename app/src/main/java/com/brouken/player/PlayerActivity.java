@@ -182,6 +182,7 @@ public class PlayerActivity extends Activity {
     private FrameStepEngine frameStepEngine;
     private int frameStepRequestId = 0;
     private boolean frameStepLoading = false;
+    private boolean frameModeActive = false;
 
     private boolean restoreOrientationLock;
     private boolean restorePlayState;
@@ -1661,6 +1662,7 @@ public class PlayerActivity extends Activity {
                 if (resultFailure != null && frameStepEngine != null) {
                     frameStepEngine.getState().error = "Frame extraction unavailable for this source.";
                 }
+                frameModeActive = frameStepEngine != null && frameStepEngine.getState().isFrameMode();
                 showFramePreview(resultBitmap);
                 if (player != null && frameStepEngine != null && frameStepEngine.getState().mode == FrameStepMode.TimestampEstimated) {
                     player.seekTo(frameStepEngine.selectedPositionMs());
@@ -1699,6 +1701,7 @@ public class PlayerActivity extends Activity {
     private void hideFramePreview() {
         frameStepRequestId++;
         frameStepLoading = false;
+        frameModeActive = false;
         if (framePreview != null) {
             framePreview.setImageDrawable(null);
             framePreview.setVisibility(View.GONE);
@@ -2497,7 +2500,7 @@ public class PlayerActivity extends Activity {
 
         @Player.State int state = player.getPlaybackState();
         if (state == Player.STATE_IDLE || state == Player.STATE_ENDED || !player.getPlayWhenReady()) {
-            if (frameStepEngine != null && frameStepEngine.getState().isFrameMode()) {
+            if (frameModeActive && frameStepEngine != null && frameStepEngine.getState().isFrameMode()) {
                 player.seekTo(frameStepEngine.selectedPositionMs());
             }
             hideFramePreview();
